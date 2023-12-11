@@ -3,42 +3,82 @@
 void Main()
 {
 	var nodeMapping = new Dictionary<string, string[]>();
-	
+
 	var lines = Inputs.Input1.Split(Environment.NewLine);
 	var instructions = lines[0].ToArray();
-	
+
 	for (int ii = 2; ii < lines.Length; ii++)
 	{
 		var line = lines[ii];
-		
+
 		var nodes = line.Split(' ', '=', '(', ')', ',').Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
 		//nodes.Dump();
-		
+
 		nodeMapping.Add(nodes[0], nodes.Skip(1).ToArray());
 	}
-	
+
 	//nodeMapping.Dump();
-	
-	var currNode = "AAA";
-	var destNode = "ZZZ";
-	
-	var steps = 0;
-	
-	while(true)
+
+	// Part 1
+	if (false)
 	{
-		if (currNode.Equals(destNode))
-			break;
-		
-		char instruction = GetInstruction(instructions, steps);
-		if (instruction == 'L')
-			currNode = nodeMapping[currNode][0];
-		else
-			currNode = nodeMapping[currNode][1];
-			
-		steps++;
+		var currNode = "AAA";
+		var destNode = "ZZZ";
+
+		var steps = 0;
+
+		while (true)
+		{
+			if (currNode.Equals(destNode))
+				break;
+
+			char instruction = GetInstruction(instructions, steps);
+			if (instruction == 'L')
+				currNode = nodeMapping[currNode][0];
+			else
+				currNode = nodeMapping[currNode][1];
+
+			steps++;
+		}
+
+		steps.DumpTell();
 	}
-	
-	steps.DumpTell();
+
+
+	// Part 2
+	if (true)
+	{
+		var startNodes = nodeMapping.Keys.Where(k => k.EndsWith('A')).ToArray();
+		List<string> searchGhosts = startNodes.Select(n => n).ToList();
+		List<long> completedSteps = new List<long>();
+
+		var steps = 0;
+
+		while (searchGhosts.Count() > 0)
+		{
+			char instruction = GetInstruction(instructions, steps);
+			for (int ii = searchGhosts.Count() - 1; ii >= 0; ii--)
+			{
+				if (searchGhosts[ii].EndsWith('Z'))
+				{
+					completedSteps.Add(steps);
+					searchGhosts.RemoveAt(ii);
+					continue;
+				}
+				
+				if (instruction == 'L')
+					searchGhosts[ii] = nodeMapping[searchGhosts[ii]][0];
+				else
+					searchGhosts[ii] = nodeMapping[searchGhosts[ii]][1];
+			}
+
+			steps++;
+		}
+		
+		completedSteps.DumpTell();
+		var lowerCommonMultiple = MyExtensions.LowerCommonMultiple(completedSteps.ToArray());
+		lowerCommonMultiple.DumpTell();
+	}
 }
 
 public char GetInstruction(char[] instructions, int step)

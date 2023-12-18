@@ -17,7 +17,7 @@ void Main()
 	}
 	
 	Parallel.ForEach(conditions, condition => 
-	//foreach (var condition in conditions)//.Skip(0).Take(1))
+	//foreach (var condition in conditions.Take(1))
 	{
 		//condition.Search();
 		condition.SearchPart2();
@@ -25,7 +25,7 @@ void Main()
 	}
 	);
 	
-	conditions.OrderByDescending(c => c.SearchedSteps).Dump();
+	conditions.OrderByDescending(c => c.ValidPermutations).Dump();
 	
 	var sumPermutations = conditions.Sum(x => x.ValidPermutations);
 	sumPermutations.Dump(); // 7490
@@ -40,6 +40,7 @@ public class SpringConditions
 	
 	public long ValidPermutations { get; private set; }
 	public long	SearchedSteps { get; private set; }
+	public TimeSpan SearchDuration { get; private set; }
 	
 	public SpringConditions(string unknown, string known)
 	{
@@ -50,7 +51,7 @@ public class SpringConditions
 	public void Search()
 	{
 		var knownPatternValues = KnownPattern.Split(',').Select(p => int.Parse(p)).ToArray();
-		FindPermutation(UnknownPattern, knownPatternValues);
+		FindPermutations(UnknownPattern, knownPatternValues);
 	}
 	
 	public void SearchPart2()
@@ -59,10 +60,78 @@ public class SpringConditions
 		var repeatedValues = Enumerable.Repeat(knownPatternValues, 5).SelectMany(x => x).ToArray();
 		//repeatedValues.Dump();
 		var input = string.Join('?', Enumerable.Repeat(UnknownPattern, 5));
-		FindPermutation(input, repeatedValues);
+		FindPermutations(input, repeatedValues);
 	}
 	
-	private void FindPermutation(string input, int[] knownPatternValues)
+	public void FindPermutations(string input, int[] knownPatternValues)
+	{
+		var sw = Stopwatch.StartNew();
+		try
+		{
+			Stack<State> searchSpace = new Stack<State>();
+
+			var inputSubstring = input.IndexOfAny(['?', '#']);
+			searchSpace.Push(new State(input.Substring(inputSubstring), knownPatternValues)); // this needs to trim starting '.'
+
+			char[] indexableChars = ['.', '?'];
+
+			bool found = false;
+			while (!found && searchSpace.Count > 0)
+			{
+				SearchedSteps++;
+				var state = searchSpace.Pop();
+				//state.UnknownPattern.DumpMonospace();
+
+				if (state.HasKnownPattern)
+				{
+					ReadOnlySpan<char> unknownPattern = state.UnknownPattern.AsSpan();
+					var unknownPatternLength = unknownPattern.Length;
+					if (unknownPatternLength >= state.Pattern)
+					{
+						var searchablePattern = unknownPattern.Slice(0, state.Pattern);
+						if (searchablePattern[0] == '?')
+						{
+							var skipIndex = 1;
+							while (skipIndex < unknownPatternLength && unknownPattern[skipIndex] == '.')
+								skipIndex++;
+							searchSpace.Push(new State(state.UnknownPattern.Substring(skipIndex), state.KnownPattern));
+						}
+
+						if (!searchablePattern.Contains('.'))
+						{
+							if (unknownPatternLength > state.Pattern && unknownPattern[state.Pattern] != '#')
+							{
+								var substringIndex = state.Pattern + 1;
+								while (substringIndex < unknownPatternLength && unknownPattern[substringIndex] == '.')
+									substringIndex++;
+
+								var substring = state.UnknownPattern.Substring(substringIndex);
+								searchSpace.Push(new State(substring, state.KnownPattern.Skip(1).ToArray()));
+							}
+							else if (unknownPatternLength == state.Pattern)
+							{
+								searchSpace.Push(new State("", state.KnownPattern.Skip(1).ToArray()));
+							}
+						}
+					}
+				}
+				else
+				{
+					if (!state.UnknownPattern.Contains('#'))
+					{
+						ValidPermutations++;
+					}
+				}
+			}
+		}
+		finally
+		{
+			sw.Stop();
+			SearchDuration = sw.Elapsed;
+		}
+	}
+	
+	private void FindPermutationsOld(string input, int[] knownPatternValues)
 	{
 		SearchedSteps++;
 		//input.DumpMonospace();
@@ -80,7 +149,7 @@ public class SpringConditions
 		}
 
 		// Prune the search space some more
-		var prune = true;
+		var prune = false;
 		var testDot = true;
 		var testHash = true;
 		var testHashDot = false;
@@ -151,14 +220,32 @@ public class SpringConditions
 		}
 
 		if (testDot)
-			FindPermutation(input.ReplaceAt(index, '.'), knownPatternValues);
+			FindPermutations(input.ReplaceAt(index, '.'), knownPatternValues);
 		if (testHash)
 		{
 			if (testHashDot)
-				FindPermutation(input.ReplaceAt(index, '#').ReplaceAt(index + 1, '.'), knownPatternValues);
+				FindPermutations(input.ReplaceAt(index, '#').ReplaceAt(index + 1, '.'), knownPatternValues);
 			else
-				FindPermutation(input.ReplaceAt(index, '#'), knownPatternValues);
+				FindPermutations(input.ReplaceAt(index, '#'), knownPatternValues);
 		}
+	}
+}
+
+public class State
+{
+	public readonly string UnknownPattern;
+	public readonly int[] KnownPattern;
+
+	public readonly bool HasKnownPattern;
+	public readonly int Pattern;
+
+	public State(string unknownPattern, int[] knownPattern)
+	{
+		UnknownPattern = unknownPattern;
+		KnownPattern = knownPattern;
+
+		HasKnownPattern = knownPattern.Length > 0;
+		Pattern = HasKnownPattern ? knownPattern[0] : -1;
 	}
 }
 
@@ -172,7 +259,7 @@ public class Inputs
 ????.######..#####. 1,6,5
 ?###???????? 3,2,1";
 
-	public const string Example2 = @"#?????????#???? 1,3,2,2"; //"#.......#?#???? 1,3,2,2";
+	public const string Example2 = @"??????????????.????? 1,3,4,1,1,1"; //"#.......#?#???? 1,3,2,2";
 
 	public const string Input1 =
 @"??????#?#?#?? 2,2,6
